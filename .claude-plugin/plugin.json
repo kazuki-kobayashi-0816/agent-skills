@@ -9,5 +9,33 @@
   "repository": "https://github.com/addyosmani/agent-skills",
   "license": "MIT",
   "commands": ["./.claude/commands", "./commands"],
-  "skills": "./skills"
+  "skills": "./skills",
+  "userConfig": {
+    "min_lines": {
+      "type": "number",
+      "title": "Read guard threshold (lines)",
+      "description": "Files longer than this are blocked from a direct Read (main conversation, codebase-analyst, test-writer, implementer, personas) and routed to bulk-reader or a ranged Read.",
+      "default": 350,
+      "min": 50
+    },
+    "main_write_max_lines": {
+      "type": "number",
+      "title": "Max lines the main conversation may write per Write/Edit",
+      "description": "Larger writes in the main conversation are blocked and routed to test-writer / implementer / code-writer. Planning docs (*.md, tasks/, spec/, docs/) are exempt.",
+      "default": 40,
+      "min": 1
+    },
+    "block_main_edits": {
+      "type": "boolean",
+      "title": "Block all code edits in the main conversation",
+      "description": "When true, the main conversation may not Write/Edit code at all and must delegate. Start with false and switch after checking /usage.",
+      "default": false
+    },
+    "test_path_patterns": {
+      "type": "string",
+      "title": "Test file patterns (space-separated shell patterns, matched against /<path>)",
+      "description": "Defines the test-writer / implementer boundary: test-writer may write only to matching paths, implementer may not write to them. Add e.g. */spec/* for Ruby or */jest.config.* to hand test config to test-writer.",
+      "default": "*/test/* */tests/* */__tests__/* */__mocks__/* */__snapshots__/* */__fixtures__/* */testdata/* *.test.* *.spec.* *_test.go *_test.py */test_*.py *Test.java *Tests.java *IT.java *Test.kt *Test.cs *Tests.cs *_spec.rb *_test.rb *.feature *.snap */conftest.py"
+    }
+  }
 }

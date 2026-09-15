@@ -190,3 +190,38 @@ Not every task needs every skill. A bug fix might only need: `debugging-and-erro
 | Ship | documentation-and-adrs | Document the why, not just the what |
 | Ship | observability-and-instrumentation | Structured logs, RED metrics, traces, symptom-based alerts |
 | Ship | shipping-and-launch | Pre-launch checklist, monitoring, rollback plan |
+
+## Delegation and model routing
+
+The main conversation is the **orchestrator**: it talks to the user, plans, writes briefs, verifies
+summaries, arbitrates, and makes small edits. Anything that would fill its context with file contents,
+test output, or generated code goes to a subagent. Hooks enforce the mechanical part (large reads, large
+writes, the test/production boundary); this table is the judgment part.
+
+| Work | Route to | Model | Why |
+| --- | --- | --- | --- |
+| Find files / symbols / call sites; read one big file to answer one question | `Explore`, `bulk-reader` | Haiku | Pure I/O. Summaries come back, file contents never enter the caller's context |
+| Root-cause analysis, architecture or data-flow understanding, impact analysis, comparing approaches | `codebase-analyst` | Opus | Judgment-heavy. It delegates its own bulk reading to `bulk-reader` |
+| Write the failing tests for a planned task (RED) and state the contract | `test-writer` | Sonnet | Test files only — hooks block writes to production code |
+| Make those tests pass, refactor, run the suite, commit (GREEN) | `implementer` | Sonnet | Production code only — hooks block writes to test files and snapshot updates |
+| Boilerplate that copies an existing pattern (config, type stubs, fixtures, test scaffolds) | `code-writer` | Haiku | Output goes straight to disk; needs a reference file |
+| Review before merge, security audit, test strategy, web-perf audit | existing personas (`code-reviewer`, `security-auditor`, `test-engineer`, `web-performance-auditor`) | as defined | Unchanged |
+
+Rules that keep delegation cheaper than doing it yourself:
+
+- **One test-writer and one implementer per task, resumed.** Spawn each once per plan task and resume it
+  (send it a follow-up) for retries and disputes. Do not spawn a fresh one per step: every spawn re-pays the
+  system prompt, CLAUDE.md, and the context it must re-read.
+- **Tests are the spec.** The implementer never edits tests. When it disputes a test, the orchestrator decides from
+  the acceptance criteria and resumes the test-writer to revise if needed. The contract in the test-writer's report
+  is what the implementer builds against — pass it along verbatim.
+- **Brief with paths, not contents.** A brief contains the task, acceptance criteria, relevant paths, the contract,
+  and constraints. Never paste file contents into a brief when a path will do.
+- **Ask for short reports.** ≤ 12 lines from `test-writer`, ≤ 10 from `implementer`, ≤ 40 from `codebase-analyst`,
+  structured bullets only from `bulk-reader`. Results return to the main context and stay there.
+- **Do not delegate:** a quick targeted change under the write threshold, anything that needs a decision
+  from the user (subagents cannot ask questions — surface the question yourself), and work whose phases
+  share so much context that splitting it would mean re-reading everything.
+- **Verify from artifacts, not transcripts.** After each report, check `git show --stat` (RED commit touches only
+  test files, GREEN commit only production files) and the test summary rather than reading the changed files.
+  A `BOUNDARY VIOLATION:` line in a report means the orchestrator restores the listed files before continuing.
